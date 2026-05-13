@@ -1,0 +1,505 @@
+{
+  "name": "Resume Optimizer with LaTeX",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Resume Optimizer",
+        "formDescription": "Submit your job description and current resume to generate an optimized LaTeX resume",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea",
+              "fieldName": "jobDescription",
+              "placeholder": "Paste the job description here",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Current Resume",
+              "fieldType": "textarea",
+              "fieldName": "currentResume",
+              "placeholder": "Paste your current resume text here",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "08cb364b-2f37-42dd-ba7c-37c3ee3642ed",
+      "name": "On form submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        176,
+        320
+      ],
+      "webhookId": "eebad0c2-1a85-469f-91b1-a39079b607d2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this job description and current resume, then create an optimized resume tailored to the position.\n\nJob Description:\n{{ $json.jobDescription }}\n\nCurrent Resume:\n{{ $json.currentResume }}",
+        "options": {
+          "systemMessage": "You are a professional resume writer. Analyze the job description and current resume, then create an optimized resume that highlights relevant skills and experience for the position."
+        }
+      },
+      "id": "3e4e20ef-6749-4f56-8cd8-b98f77a53bcf",
+      "name": "Resume Generator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        400,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Convert this resume content into a professional LaTeX document. Output ONLY valid LaTeX code that can be compiled directly, with no explanations or markdown formatting.\n\nResume Content:\n{{ $json.output }}",
+        "options": {
+          "systemMessage": "You are a LaTeX expert. Convert resume content into clean, professional LaTeX code using appropriate document classes and formatting. Output only the LaTeX code without any explanations."
+        }
+      },
+      "id": "3878931f-b2b3-4383-9d8a-d4d9ff5f2704",
+      "name": "Resume Latex Convertor",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        400,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json.output;\n\nlet latexCode = response;\n\nlatexCode = latexCode.replace(/^```latex\\n?/gm, '');\nlatexCode = latexCode.replace(/^```\\n?/gm, '');\nlatexCode = latexCode.replace(/\\n?```$/gm, '');\n\nconst docClassMatch = latexCode.match(/\\\\documentclass/);\nif (docClassMatch) {\n  latexCode = latexCode.substring(latexCode.indexOf('\\\\documentclass'));\n}\n\nconst endDocMatch = latexCode.match(/\\\\end{document}/);\nif (endDocMatch) {\n  const endIndex = latexCode.indexOf('\\\\end{document}') + '\\\\end{document}'.length;\n  latexCode = latexCode.substring(0, endIndex);\n}\n\nlatexCode = latexCode.trim();\n\nreturn [{ json: { latexCode } }];"
+      },
+      "id": "dca5f2a6-f847-47ed-8f08-cb597691f6eb",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "processedLatex",
+              "value": "={{ $json.latexCode }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "86dba204-5b3f-4531-850a-00b33a038308",
+      "name": "Edit Fields3 manual",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1104,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cookieData = 'overleaf_session2=s%3AVMjQO_IjTz0SUVdOKMbVPNQ93fQYZbcg.7kLHk35B8hZngWWe6V0ngGQjwzPhE2GU%2BgG72Nb0%2Fwg'; // Keep your massive cookie string here!\nconst decodedCookie = decodeURIComponent(cookieData);\n\nconst latex = $input.first().json.latexCode;\n// Convert LaTeX to Base64 so Overleaf can ingest it safely\nconst base64Latex = Buffer.from(latex).toString('base64');\n\nreturn [{ json: { cookie: decodedCookie, latexCode: latex, base64Latex: base64Latex } }];"
+      },
+      "id": "3dfaf9ed-5a02-45dd-9e7c-2da74a0b193e",
+      "name": "Decode Cookie key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.overleaf.com/project",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $json.cookie }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3fda8e44-2eac-4f42-99c4-6d764817051b",
+      "name": "Connect Overleaf",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const htmlString = $input.first().json.data; \n\n// This smarter regex looks specifically for Overleaf's custom 'ol-csrfToken' tag, \n// as well as a few other common hiding spots just in case!\nconst match = htmlString.match(/name=\"ol-csrfToken\"\\s+content=\"([^\"]+)\"/) \n           || htmlString.match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/)\n           || htmlString.match(/window\\.csrfToken\\s*=\\s*\"([^\"]+)\"/);\n\nlet csrfToken = \"TOKEN_NOT_FOUND\";\n\nif (match && match[1]) {\n  csrfToken = match[1];\n} \n\nreturn {\n  json: {\n    csrfToken: csrfToken,\n    cookie: $input.first().json.cookie,\n    latexCode: $input.first().json.latexCode\n  }\n};"
+      },
+      "id": "f90ae93c-628f-402b-8dba-b90accfb85d7",
+      "name": "Extract csrf",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.overleaf.com/docs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $('Decode Cookie key').item.json.cookie }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "x-csrf-token",
+              "value": "={{ $('Extract csrf').item.json.csrfToken }}"
+            },
+            {
+              "name": "Origin",
+              "value": "https://www.overleaf.com"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.overleaf.com/project"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "snip_uri",
+              "value": "=data:application/x-tex;base64,{{ $('Decode Cookie key').item.json.base64Latex }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "195bd758-1555-4a78-9725-a8a5188b8a21",
+      "name": "Create Project and Paste Latex",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1328,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The previous node already did the hard work and gave us the ID directly!\nconst projectId = $input.first().json.projectId;\n\n// Grab your security tokens from the earlier node to keep the chain intact\nconst cookie = $('Extract csrf').item.json.cookie;\nconst csrfToken = $('Extract csrf').item.json.csrfToken;\n\nreturn [{ json: { projectId: projectId, cookie: cookie, csrfToken: csrfToken } }];"
+      },
+      "id": "cc9c4d81-34fb-4667-8227-394d1477c335",
+      "name": "Extract Project ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ \"https://www.overleaf.com/project/\" + $json.projectId + \"/compile\" }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $('Decode Cookie key').item.json.cookie }}"
+            },
+            {
+              "name": "X-CSRF-Token",
+              "value": "={{ $json.csrfToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2072db2b-d14d-4266-a493-9e9d68d1e2e8",
+      "name": "Project Compiler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const compileResponse = $input.first().json;\nconst projectId = $('Extract Project ID').item.json.projectId;\nconst pdfUrl = compileResponse.pdfUrl || '/project/' + projectId + '/output/output.pdf';\nconst cookie = $('Extract Project ID').item.json.cookie;\n\nreturn [{ json: { pdfUrl, cookie, projectId } }];"
+      },
+      "id": "e0dbeaa7-460f-4bb1-868d-53ff63fe1312",
+      "name": "Rendered Resume PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://www.overleaf.com\" + $json.pdfUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $('Decode Cookie key').item.json.cookie }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "610b741a-bf4a-4634-949d-865b9ec776b0",
+      "name": "Generates Resume PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1792,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        192,
+        672
+      ],
+      "id": "d1e88c54-b6ca-4257-a149-3f68509a53ea",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "mGflhpOfB7BhDEM4",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1616,
+        464
+      ],
+      "id": "fe5ea9c8-88aa-4e94-b319-27202eef0b5d",
+      "name": "Wait",
+      "webhookId": "b4febc49-543b-4091-b59d-4b56b4e15ed9"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Resume Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Generator": {
+      "main": [
+        [
+          {
+            "node": "Resume Latex Convertor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Latex Convertor": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3 manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3 manual": {
+      "main": [
+        [
+          {
+            "node": "Decode Cookie key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decode Cookie key": {
+      "main": [
+        [
+          {
+            "node": "Connect Overleaf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Connect Overleaf": {
+      "main": [
+        [
+          {
+            "node": "Extract csrf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract csrf": {
+      "main": [
+        [
+          {
+            "node": "Create Project and Paste Latex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Project and Paste Latex": {
+      "main": [
+        [
+          {
+            "node": "Extract Project ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Project ID": {
+      "main": [
+        [
+          {
+            "node": "Project Compiler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project Compiler": {
+      "main": [
+        [
+          {
+            "node": "Rendered Resume PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendered Resume PDF": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Resume Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Resume Latex Convertor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Generates Resume PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ffa8a086-3a96-45ed-99b6-da5706126e3f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ddb3ca297a151dce05eaf0e3447aa1bba6ed0548f0986c36ed17e51fc923890a"
+  },
+  "id": "LtUSeFhT4E15eDI9",
+  "tags": []
+}
